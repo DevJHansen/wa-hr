@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {  
+  
+    match /users/{userId} {
+      allow read, write: if isLoggedIn() && (request.auth.uid == resource.id || isAdmin());
+    }
+        
+    match /companies/{companyId} {
+      allow read, write: if isLoggedIn()
+    }
+
+    function isLoggedIn() { 
+      return request.auth.uid != null;
+    }
+  }
+}

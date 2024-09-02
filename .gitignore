@@ -1,0 +1,14 @@
+.env.production
+.env.development
+.env
+
+node_modules/
+dist/
+build/
+.firebase/
+coverage/
+firestore-debug.log
+
+functions/lib
+functions/firebase-debug.log
+*debug.log
