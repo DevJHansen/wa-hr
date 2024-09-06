@@ -1,6 +1,9 @@
+import { useRecoilState } from 'recoil';
 import { Button } from '../UI/Button';
+import { deleteCompanyModal } from './modals/recoil';
 
 export const Danger = () => {
+  const [, setDeleteCompany] = useRecoilState(deleteCompanyModal);
   return (
     <div className="w-full">
       <div className="border-b-[1px] border-b-gray-300 pb-8">
@@ -15,6 +18,7 @@ export const Danger = () => {
             text="Delete Company"
             className="border-error text-error mb-2"
             outline={true}
+            onClick={() => setDeleteCompany(true)}
           />
         </div>
       </div>

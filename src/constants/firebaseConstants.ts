@@ -6,3 +6,5 @@ export const GOOGLE_STORAGE_LINK = 'https://storage.googleapis.com';
 export const USERS_COLLECTION = 'users';
 
 export const COMPANIES_COLLECTION = 'companies';
+
+export const CONFIG_COLLECTION = 'config';

@@ -1,22 +1,44 @@
 import { useRecoilState } from 'recoil';
 import { companyState } from '../../recoil/authState';
 import { Button } from '../UI/Button';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { FormInput } from '../UI/FormInput';
-import { handleTimeout } from '../../utils/timout';
+import { handleTimeout } from '../../utils/timeout';
 import { doc, updateDoc } from 'firebase/firestore';
 import { COMPANIES_COLLECTION } from '../../constants/firebaseConstants';
 import { firestoreDB } from '../../backend/firestore';
 import { Avatar } from '../UI/Avatar';
+import { base64ToFile, uploadFile } from '../../backend/storage';
 
 export const CompanyInfo = () => {
   const [company, setCompany] = useRecoilState(companyState);
-  const [name, setName] = useState(company?.name ?? '');
+  const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(false);
+  const [logo, setLogo] = useState<string>('');
+
+  useEffect(() => {
+    if (!name && company?.name) {
+      setName(company.name);
+    }
+    if (!logo && company?.logo) {
+      setLogo(company.logo);
+    }
+  }, [company, logo, name]);
 
   if (!company) return null;
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        setLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -27,18 +49,32 @@ export const CompanyInfo = () => {
 
     setSaving(true);
 
-    const changes = {
-      name,
-      updatedAt: Date.now(),
-    };
+    let logoUrl = company.logo;
 
     try {
+      if (company.logo !== logo) {
+        const file = base64ToFile(logo, 'logo');
+        const res = await uploadFile(`/${company.uid}/logo`, file);
+
+        if (!res.link) {
+          throw new Error('Error uploading file');
+        }
+
+        logoUrl = res.link;
+      }
+
       const docRef = doc(firestoreDB, COMPANIES_COLLECTION, company.uid);
-      updateDoc(docRef, changes);
+      await updateDoc(docRef, {
+        name,
+        updatedAt: Date.now(),
+        logo: logoUrl,
+      });
 
       setCompany({
         ...company,
-        ...changes,
+        name,
+        updatedAt: Date.now(),
+        logo: logoUrl,
       });
       setSaving(false);
       setSuccess(true);
@@ -52,17 +88,18 @@ export const CompanyInfo = () => {
   };
 
   const handleCancel = () => {
-    setName('');
+    setName(company.name);
+    setLogo(company.logo);
   };
 
-  const hasChanges = name !== company.name;
+  const hasChanges = name !== company.name || company.logo !== logo;
 
   return (
     <div className="w-full">
-      <div className="border-b-[1px] border-b-gray-300 pb-8">
+      <div className=" pb-8">
         <h1 className="font-bold text-lg">Company Info</h1>
         <form className="mt-6" onSubmit={handleSubmit}>
-          <Avatar url={company.logo} />
+          <Avatar url={logo} handleChange={handleImageChange} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-8">
             <FormInput
               label="Company Name"

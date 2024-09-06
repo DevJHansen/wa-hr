@@ -42,7 +42,7 @@ export const SelectInput = ({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full bg-background focus:outline-none ${className}`}
+          className={`w-full bg-white focus:outline-none ${className}`}
           required={required}
           disabled={disabled}
         >

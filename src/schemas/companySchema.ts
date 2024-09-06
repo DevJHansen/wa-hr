@@ -8,7 +8,8 @@ export const companySchema = z.object({
   country: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),
-  departments: z.array(z.string()),
+  deleted: z.boolean(),
+  teams: z.array(z.string()),
 });
 
 export const usersArraySchema = z.array(companySchema);

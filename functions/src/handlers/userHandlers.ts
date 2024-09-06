@@ -4,7 +4,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type { https } from 'firebase-functions/v1';
 import type { Response } from 'firebase-functions';
 import { z } from 'zod';
-import { validateAdmin } from '../utils/authUtils';
+import { getUser, getUserDoc, validateAdmin } from '../utils/authUtils';
 import {
   UNAUTHORIZED,
   BAD_REQUEST,
@@ -12,18 +12,129 @@ import {
   INTERNAL_SERVER_ERROR,
   SUCCESS,
   CONFLICT,
+  NOT_FOUND,
 } from '../constants/statusCodes';
 import { USERS_COLLECTION } from '../constants/firestoreConstants';
 import { emailValue } from '../utils/zodUtils';
+import { DEFAULT_PAGE_SIZE } from '../constants/pagination';
+import { UserSchema, userSchemaWithRole } from '../schemas/userSchema';
+import { getTotalPages } from '../utils/pagination';
+
+export const handleGetUsers = async (
+  request: https.Request,
+  response: Response
+) => {
+  const [isAdmin, submittingUser] = await Promise.all([
+    validateAdmin(request),
+    getUser(request),
+  ]);
+
+  if (!submittingUser || !isAdmin) {
+    response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
+  }
+
+  const submittingUserDoc = await getUserDoc(submittingUser?.uid ?? '');
+
+  if (!submittingUserDoc) {
+    response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
+  }
+
+  const page = parseInt(request.query.page as string) || 1;
+
+  try {
+    const collectionRef = admin.firestore().collection(USERS_COLLECTION);
+
+    const fireStoreUsers = await collectionRef
+      .where('companyId', '==', submittingUserDoc.companyId)
+      .orderBy('createdAt', 'desc')
+      .limit(DEFAULT_PAGE_SIZE)
+      .offset((page - 1) * DEFAULT_PAGE_SIZE)
+      .get();
+
+    const firebaseAuthUsers = await admin
+      .auth()
+      .getUsers(fireStoreUsers.docs.map((doc) => ({ uid: doc.id })));
+
+    const users = firebaseAuthUsers.users.map((user) => {
+      const firestoreUser = fireStoreUsers.docs.find(
+        (doc) => doc.id === user.uid
+      );
+
+      if (!firestoreUser?.exists) {
+        return undefined;
+      }
+
+      const validatedUser = userSchemaWithRole.safeParse({
+        uid: user.uid,
+        email: user.email,
+        firstName: firestoreUser.data().firstName,
+        surname: firestoreUser.data().surname,
+        role: user.customClaims?.role,
+        createdAt: firestoreUser.data().createdAt,
+        updatedAt: firestoreUser.data().updatedAt,
+        companyId: firestoreUser.data().companyId,
+      });
+
+      if (validatedUser.success) {
+        return validatedUser.data;
+      }
+
+      return undefined;
+    });
+
+    const filteredUsers = users.filter((user) => user !== undefined);
+    const validateFilter = z.array(userSchemaWithRole).safeParse(filteredUsers);
+
+    if (!validateFilter.success) {
+      return response
+        .status(BAD_REQUEST)
+        .send({ message: 'Error getting users' });
+    }
+
+    const orderedUsers = validateFilter.data.sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
+
+    const countSnapshot = await collectionRef.count().get();
+
+    const totalPages = getTotalPages(
+      countSnapshot.data().count,
+      DEFAULT_PAGE_SIZE
+    );
+
+    return response.status(SUCCESS).send({
+      users: orderedUsers,
+      page,
+      totalPages,
+    });
+  } catch (error) {
+    functions.logger.error(error);
+    return response
+      .status(INTERNAL_SERVER_ERROR)
+      .send({ message: 'Error getting user' });
+  }
+};
 
 export const handleCreateUser = async (
   request: https.Request,
   response: Response,
   db: Firestore
 ) => {
-  const isAdmin = await validateAdmin(request);
+  const [isAdmin, submittingUser] = await Promise.all([
+    validateAdmin(request),
+    getUser(request),
+  ]);
 
-  if (!isAdmin) {
+  if (!isAdmin || !submittingUser) {
+    response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
+  }
+
+  const submittingUserDoc = await getUserDoc(submittingUser?.uid ?? '');
+
+  if (!submittingUserDoc) {
     response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
     return;
   }
@@ -34,7 +145,6 @@ export const handleCreateUser = async (
     password: z.string(),
     firstName: z.string(),
     surname: z.string(),
-    companyId: z.string(),
   });
 
   const validatedBody = newUserFields.safeParse(request.body);
@@ -45,8 +155,7 @@ export const handleCreateUser = async (
     return;
   }
 
-  const { role, email, password, firstName, surname, companyId } =
-    validatedBody.data;
+  const { role, email, password, firstName, surname } = validatedBody.data;
 
   const isUnique = await admin
     .auth()
@@ -82,7 +191,7 @@ export const handleCreateUser = async (
       uid: newAuthUser.uid,
       createdAt: Date.now(),
       updatedAt: 0,
-      companyId,
+      companyId: submittingUserDoc.companyId,
     };
 
     await userDocRef.set(userData);
@@ -103,11 +212,17 @@ export const handleUpdateUser = async (
   response: Response,
   db: Firestore
 ) => {
-  // const isAdmin = await validateAdmin(request);
+  const [isAdmin, submittingUser] = await Promise.all([
+    validateAdmin(request),
+    getUser(request),
+  ]);
 
-  // if (!isAdmin) {
-  //   response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
-  // }
+  if (!isAdmin || !submittingUser) {
+    response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
+  }
+
+  const submittingUserDoc = await getUserDoc(submittingUser?.uid ?? '');
 
   const updateUserFields = z.object({
     uid: z.string(),
@@ -115,10 +230,14 @@ export const handleUpdateUser = async (
     firstName: z.string(),
     surname: z.string(),
     role: z.string(),
-    companyId: z.string(),
   });
 
   const validatedBody = updateUserFields.safeParse(request.body);
+
+  if (!submittingUserDoc) {
+    response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
+  }
 
   if (!validatedBody.success) {
     functions.logger.error(validatedBody.error);
@@ -126,24 +245,34 @@ export const handleUpdateUser = async (
     return;
   }
 
-  const { uid, role, firstName, surname, email, companyId } =
-    validatedBody.data;
+  const { uid, role, firstName, surname, email } = validatedBody.data;
+
+  const userToUpdate = await db.collection(USERS_COLLECTION).doc(uid).get();
+
+  if (!userToUpdate.exists) {
+    response.status(NOT_FOUND).send({ message: 'User does not exist' });
+    return;
+  }
+
+  const typedUserToUpDate = userToUpdate.data() as UserSchema;
+
+  if (typedUserToUpDate.companyId !== submittingUserDoc.companyId) {
+    response.status(NOT_FOUND).send({ message: 'User does not exist' });
+    return;
+  }
 
   try {
     await Promise.all([
       admin.auth().setCustomUserClaims(uid, {
         role,
+        email: email,
+        displayName: firstName + ' ' + surname,
       }),
       db.collection(USERS_COLLECTION).doc(uid).update({
         firstName,
         surname,
         email,
         updatedAt: Date.now(),
-        companyId,
-      }),
-      admin.auth().updateUser(uid, {
-        email: email,
-        displayName: firstName + ' ' + surname,
       }),
     ]);
     response.status(SUCCESS).send({ message: 'User updated successfully' });
@@ -160,10 +289,21 @@ export const handleDeleteUser = async (
   response: Response,
   db: Firestore
 ) => {
-  const isAdmin = await validateAdmin(request);
+  const [isAdmin, submittingUser] = await Promise.all([
+    validateAdmin(request),
+    getUser(request),
+  ]);
 
-  if (!isAdmin) {
+  if (!isAdmin || !submittingUser) {
     response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
+  }
+
+  const submittingUserDoc = await getUserDoc(submittingUser?.uid ?? '');
+
+  if (!submittingUserDoc) {
+    response.status(UNAUTHORIZED).send({ message: 'Unauthorized' });
+    return;
   }
 
   const userUID = z.object({
@@ -179,6 +319,20 @@ export const handleDeleteUser = async (
   }
 
   const { uid } = validatedBody.data;
+
+  const userToUpdate = await db.collection(USERS_COLLECTION).doc(uid).get();
+
+  if (!userToUpdate.exists) {
+    response.status(NOT_FOUND).send({ message: 'User does not exist' });
+    return;
+  }
+
+  const typedUserToUpDate = userToUpdate.data() as UserSchema;
+
+  if (typedUserToUpDate.companyId !== submittingUserDoc.companyId) {
+    response.status(NOT_FOUND).send({ message: 'User does not exist' });
+    return;
+  }
 
   try {
     await Promise.all([

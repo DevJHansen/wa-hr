@@ -13,6 +13,8 @@ import { getRoleFromClaims } from '../backend/authUtils';
 import { logoutModal } from '../components/auth/logoutModal/recoil';
 import { userSchema } from '../schemas/userSchema';
 import { CompanySchema } from '../schemas/companySchema';
+import { DEFAULT_USERS_STATE, usersState } from '../recoil/usersState';
+import { configState } from '../recoil/configState';
 
 export const useAuth = () => {
   const [user] = useAuthState(auth);
@@ -74,12 +76,16 @@ export const useCompany = () => {
 };
 
 export const useResetDataOnAuthChange = () => {
-  const [user, setUserData] = useRecoilState(userState);
   const [, setLogoutModal] = useRecoilState(logoutModal);
+  const [user, setUserData] = useRecoilState(userState);
+  const [, setConfig] = useRecoilState(configState);
+  const [, setUsers] = useRecoilState(usersState);
 
   useEffect(() => {
     if (!user) {
       setLogoutModal(false);
+      setUsers(DEFAULT_USERS_STATE);
+      setConfig(null);
     }
-  }, [setUserData, user, setLogoutModal]);
+  }, [setUserData, user, setLogoutModal, setUsers, setConfig]);
 };

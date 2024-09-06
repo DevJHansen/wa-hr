@@ -11,7 +11,7 @@ export const UnfavorableFetchResult = ({ type, message }: Props) => {
       {type === 'error' ? (
         <MdReport className="text-accent" size={64} />
       ) : (
-        <MdBlock className="text-secondary" size={64} />
+        <MdBlock className="text-accent" size={64} />
       )}
       <p className="mt-4  text-xl font-bold">{message}</p>
     </div>

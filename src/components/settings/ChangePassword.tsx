@@ -3,7 +3,7 @@ import { userState } from '../../recoil/authState';
 import { Button } from '../UI/Button';
 import { FormEvent, useState } from 'react';
 import { FormInput } from '../UI/FormInput';
-import { handleTimeout } from '../../utils/timout';
+import { handleTimeout } from '../../utils/timeout';
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -84,7 +84,7 @@ export const ChangePassword = () => {
               label="New Password"
               type="password"
               placeholder="******"
-              id="password"
+              id="new-password"
               required
               value={newPassword}
               onChange={(value) => setNewPassword(value)}

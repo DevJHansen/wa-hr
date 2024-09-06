@@ -7,9 +7,17 @@ import cors from 'cors';
 import {
   handleCreateUser,
   handleDeleteUser,
+  handleGetUsers,
   handleUpdateUser,
 } from './handlers/userHandlers';
 import { backup } from './handlers/backup';
+import {
+  handleCreateEmployee,
+  handleDeleteEmployee,
+  handleGetEmployees,
+  handleRemoveEmployeeTeam,
+  handleUpdateEmployee,
+} from './handlers/employeeHandlers';
 
 const corsHandler = cors({ origin: true });
 
@@ -43,6 +51,12 @@ export const deleteUser = onRequest(config, async (request, response) => {
   });
 });
 
+export const getUsers = onRequest(config, async (request, response) => {
+  return corsHandler(request, response, async () => {
+    await handleGetUsers(request, response);
+  });
+});
+
 /**
  * ==================================================================================
  * DAILY BACKUP FUNCTION
@@ -58,3 +72,41 @@ export const dbBackup = regionFunction.pubsub
       console.error('error running db backup', err);
     }
   });
+
+/**
+ * ==================================================================================
+ * EMPLOYEE HANDLERS
+ * ==================================================================================
+ */
+export const removeEmployeeTeam = onRequest(
+  config,
+  async (request, response) => {
+    return corsHandler(request, response, async () => {
+      await handleRemoveEmployeeTeam(request, response, db);
+    });
+  }
+);
+
+export const createEmployee = onRequest(config, async (request, response) => {
+  return corsHandler(request, response, async () => {
+    await handleCreateEmployee(request, response, db);
+  });
+});
+
+export const updateEmployee = onRequest(config, async (request, response) => {
+  return corsHandler(request, response, async () => {
+    await handleUpdateEmployee(request, response, db);
+  });
+});
+
+export const deleteEmployee = onRequest(config, async (request, response) => {
+  return corsHandler(request, response, async () => {
+    await handleDeleteEmployee(request, response, db);
+  });
+});
+
+export const getEmployees = onRequest(config, async (request, response) => {
+  return corsHandler(request, response, async () => {
+    await handleGetEmployees(request, response);
+  });
+});

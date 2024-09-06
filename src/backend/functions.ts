@@ -3,19 +3,17 @@ import axios from 'axios';
 import { getNewAuthToken } from './firestoreUtils';
 import type { UserSchema } from '../schemas/userSchema';
 import { userSchema, usersArraySchema } from '../schemas/userSchema';
-import { tokenSchema, type TokenSchema } from '../schemas/tokenSchema';
-import {
-  apiPaginationSchema,
-  type ApiPaginationType,
-} from '../schemas/apiResponseSchema';
-import type { MessageSchema } from '../schemas/broadcastSchemas';
-import {
-  broadcastArraySchema,
-  messagesArraySchema,
-  type BroadcastSchema,
-} from '../schemas/broadcastSchemas';
+import { z } from 'zod';
+import { employeeArraySchema, EmployeeSchema } from '../schemas/employeeSchema';
 
 const { VITE_FUNCTIONS_URL = '' } = import.meta.env;
+
+export const apiPaginationSchema = z.object({
+  page: z.number(),
+  totalPages: z.number(),
+});
+
+export type ApiPaginationType = z.infer<typeof apiPaginationSchema>;
 
 interface NewUser {
   email: string;
@@ -37,12 +35,8 @@ type GetUsersResponse = ApiPaginationType & {
   users: UserSchema[];
 };
 
-type GetBroadcastResponse = ApiPaginationType & {
-  broadcasts: BroadcastSchema[];
-};
-
-type GetMessagesResponse = ApiPaginationType & {
-  messages: MessageSchema[];
+type GetEmployeesResponse = ApiPaginationType & {
+  employees: EmployeeSchema[];
 };
 
 export const getUsers = async (
@@ -147,115 +141,15 @@ export const deleteUser = async (uid: string): Promise<boolean> => {
   }
 };
 
-export const getAccessToken = async (): Promise<TokenSchema> => {
-  try {
-    const userToken = await getNewAuthToken();
-    const result = await axios.post(
-      `https://getaccesstoken${VITE_FUNCTIONS_URL}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${userToken}`,
-        },
-      }
-    );
-
-    const tokenData = {
-      ...result.data,
-      accessTokenExpiresAt: new Date(result.data.accessTokenExpiresAt),
-    };
-
-    const validatedResponse = tokenSchema.safeParse(tokenData);
-
-    if (!validatedResponse.success) {
-      console.error(
-        'Error validating token response',
-        validatedResponse.error.issues
-      );
-      throw new Error('Error validating access token');
-    }
-
-    return validatedResponse.data;
-  } catch (error) {
-    console.error(error);
-    throw new Error('Error getting access token');
-  }
-};
-
-export const getBroadcasts = async (
-  page: number
-): Promise<GetBroadcastResponse | undefined> => {
-  try {
-    const userToken = await getNewAuthToken();
-    const { data } = await axios.post(
-      `https://getbroadcasts${VITE_FUNCTIONS_URL}?page=${page}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${userToken}`,
-        },
-      }
-    );
-
-    const combinedSchema = apiPaginationSchema.extend({
-      broadcasts: broadcastArraySchema,
-    });
-
-    const validatedData = combinedSchema.safeParse(data);
-
-    if (!validatedData.success) {
-      console.error('Error getting broadcasts', validatedData.error);
-      return undefined;
-    }
-
-    return validatedData.data;
-  } catch (error: any) {
-    console.error(error);
-    return undefined;
-  }
-};
-
-export const getMessages = async (
-  page: number,
-  broadcastId: string
-): Promise<GetMessagesResponse | undefined> => {
-  try {
-    const userToken = await getNewAuthToken();
-    const { data } = await axios.post(
-      `https://getmessages${VITE_FUNCTIONS_URL}?page=${page}&broadcastId=${broadcastId}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${userToken}`,
-        },
-      }
-    );
-
-    const combinedSchema = apiPaginationSchema.extend({
-      messages: messagesArraySchema,
-    });
-
-    const validatedData = combinedSchema.safeParse(data);
-
-    if (!validatedData.success) {
-      console.error('Error getting messages', validatedData.error);
-      return undefined;
-    }
-
-    return validatedData.data;
-  } catch (error: any) {
-    console.error(error);
-    return undefined;
-  }
-};
-
-export const retryAllFailedMessages = async (broadcastId: string) => {
+export const removeTeamFromEmployees = async (
+  team: string
+): Promise<boolean> => {
   try {
     const userToken = await getNewAuthToken();
     await axios.post(
-      `https://retryfailedmessages${VITE_FUNCTIONS_URL}`,
+      `https://removeemployeeteam${VITE_FUNCTIONS_URL}`,
       {
-        broadcastId,
+        team,
       },
       {
         headers: {
@@ -263,7 +157,42 @@ export const retryAllFailedMessages = async (broadcastId: string) => {
         },
       }
     );
+    return true;
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error deleting user');
+  }
+};
+
+export const getEmployees = async (
+  page: number
+): Promise<GetEmployeesResponse | undefined> => {
+  try {
+    const userToken = await getNewAuthToken();
+    const { data } = await axios.post(
+      `https://getemployees${VITE_FUNCTIONS_URL}?page=${page}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
+      }
+    );
+
+    const combinedSchema = apiPaginationSchema.extend({
+      employees: employeeArraySchema,
+    });
+
+    const validatedData = combinedSchema.safeParse(data);
+
+    if (!validatedData.success) {
+      console.error('Error getting employees', validatedData.error);
+      return undefined;
+    }
+
+    return validatedData.data;
   } catch (error: any) {
     console.error(error);
+    return undefined;
   }
 };

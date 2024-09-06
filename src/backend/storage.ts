@@ -6,6 +6,7 @@ import {
   getMetadata,
   deleteObject,
   connectStorageEmulator,
+  getDownloadURL,
 } from 'firebase/storage';
 import { createDownloadLink } from './storageUtils';
 
@@ -90,3 +91,37 @@ export const deleteFile = async (path: string) => {
     return { success: false };
   }
 };
+
+export function base64ToFile(base64String: string, fileName: string) {
+  const mimeType = base64String.match(/data:(.*?);base64,/)?.[1];
+
+  const byteString = atob(base64String.split(',')[1]);
+
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  for (let i = 0; i < byteString.length; i++) {
+    uint8Array[i] = byteString.charCodeAt(i);
+  }
+
+  const blob = new Blob([uint8Array], { type: mimeType });
+
+  return new File([blob], fileName, { type: mimeType });
+}
+
+export async function getAuthedFileUrl(urlString: string): Promise<string> {
+  const parsedUrl = new URL(urlString);
+
+  const fileRef = ref(
+    storage,
+    parsedUrl.pathname.replace('/wa-hr-f072a.appspot.com', '')
+  );
+
+  try {
+    const url = await getDownloadURL(fileRef);
+    return url;
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error fetching file path');
+  }
+}

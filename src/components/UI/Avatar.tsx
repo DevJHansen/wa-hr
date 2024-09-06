@@ -1,29 +1,34 @@
-import { useState } from 'react';
 import { MdEdit, MdPhoto } from 'react-icons/md';
+import { getAuthedFileUrl } from '../../backend/storage';
+import { useEffect, useState } from 'react';
 
 interface Props {
   url: string;
+  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-export const Avatar = ({ url }: Props) => {
-  const [image, setImage] = useState<string | null>(url || null);
+export const Avatar = ({ url, handleChange }: Props) => {
+  const [authUrl, setAuthUrl] = useState('');
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  useEffect(() => {
+    const getUrl = async () => {
+      if (url.startsWith('https://')) {
+        const res = await getAuthedFileUrl(url);
+        setAuthUrl(res);
+        return;
+      }
+
+      setAuthUrl(url);
+    };
+
+    getUrl();
+  }, [url]);
 
   return (
     <div className="relative w-48 h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-      {image ? (
+      {authUrl ? (
         <img
-          src={image}
+          src={authUrl}
           alt="Selected"
           className="object-cover w-full h-full rounded-lg shadow-md"
         />
@@ -39,7 +44,7 @@ export const Avatar = ({ url }: Props) => {
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={handleImageChange}
+          onChange={handleChange}
         />
       </label>
     </div>

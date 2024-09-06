@@ -1,4 +1,10 @@
-import { MdHome, MdLogout, MdGroup, MdSettings } from 'react-icons/md';
+import {
+  MdHome,
+  MdLogout,
+  MdGroup,
+  MdSettings,
+  MdManageAccounts,
+} from 'react-icons/md';
 import { Tooltip } from './Tooltip';
 import { Link } from 'react-router-dom';
 import { useRecoilState } from 'recoil';
@@ -24,6 +30,16 @@ export const Sidebar = () => {
             <MdGroup size={22} className="mb-8 text-white cursor-pointer" />
           </Link>
         </Tooltip>
+        {user.role === 'admin' && (
+          <Tooltip content="Users" position="right">
+            <Link to="/users">
+              <MdManageAccounts
+                size={22}
+                className="mb-8 text-white cursor-pointer"
+              />
+            </Link>
+          </Tooltip>
+        )}
         <Tooltip content="Settings" position="right">
           <Link to="/settings">
             <MdSettings size={22} className="mb-8 text-white cursor-pointer" />

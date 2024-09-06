@@ -21,6 +21,9 @@ export const Home = () => {
             title="Employees"
             description="Manage employees"
           />
+          {user.role === 'admin' && (
+            <InfoCard link="users" title="Users" description="Manage users" />
+          )}
           <InfoCard
             link="settings"
             title="Settings"
